@@ -2,75 +2,64 @@ pipeline {
     agent any
 
     environment {
-        EC2_HOST = 'REPLACE_ME_WITH_YOUR_EC2_PUBLIC_IP'   // 🟨 Replace with your EC2 IP or DNS
-        EC2_USER = 'REPLACE_ME_WITH_YOUR_EC2_USER'        // 🟨 Usually 'ubuntu' or 'ec2-user'
-        DEPLOY_DIR = '~/app/inventory'                    // 🟨 Change if you want a different path
-    }
-
-    parameters {
-        string(name: 'BRANCH', defaultValue: 'dev', description: 'Git branch to deploy')
+        DOCKERHUB_CREDENTIALS = 'dockerhub-creds'
+        DOCKERHUB_USERNAME = 'ramyasree15'
+        COMPOSE_FILE = 'docker-compose.yml'
     }
 
     stages {
-        stage('Checkout') {
+
+        stage('Checkout Source Code') {
             steps {
-                checkout([$class: 'GitSCM',
-                    branches: [[name: "*/${params.BRANCH}"]],
-                    userRemoteConfigs: [[url: 'https://github.com/ramyasree1505/inventory_management_devOps.git']]
-                ])
+                git branch: 'main',
+                    url: 'https://github.com/ramyasree1505/inventory_management_devOps.git'
             }
         }
 
-        stage('Prepare Environment Files') {
+        stage('Docker Login') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: "${DOCKERHUB_CREDENTIALS}",
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                      echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                sh "docker compose -f ${COMPOSE_FILE} build"
+            }
+        }
+
+        stage('Push Images to Docker Hub') {
             steps {
                 sh '''
-                  mkdir -p deploy/env
-                  cat > deploy/env/.env <<'EOF'
-NODE_ENV=production
-MONGO_URI=REPLACE_ME_WITH_YOUR_MONGO_URI          # 🟨 Replace with your MongoDB connection string
-STRIPE_SECRET_KEY=REPLACE_ME_WITH_YOUR_STRIPE_KEY # 🟨 Replace with your Stripe secret key
-RESEND_API_KEY=REPLACE_ME_WITH_YOUR_RESEND_KEY    # 🟨 Replace with your Resend API key
-CLOUDINARY_URL=REPLACE_ME_WITH_YOUR_CLOUDINARY_URL# 🟨 Replace with your Cloudinary URL
-EOF
+                  docker compose -f ${COMPOSE_FILE} push
                 '''
             }
         }
 
-        stage('Deploy to EC2') {
+        stage('Deploy Application') {
             steps {
-                sshagent (credentials: ['REPLACE_ME_WITH_YOUR_JENKINS_SSH_CREDENTIAL_ID']) { // 🟨 Replace with Jenkins SSH credential ID
-                    sh '''
-                      HOST="${EC2_HOST}"
-                      USER="${EC2_USER}"
-
-                      # Create directory on EC2
-                      ssh -o StrictHostKeyChecking=no "$USER@$HOST" "mkdir -p ${DEPLOY_DIR}"
-
-                      # Sync repo files
-                      rsync -az --delete --exclude '.git' --exclude 'node_modules' ./ "$USER@$HOST:${DEPLOY_DIR}/"
-
-                      # Sync env files
-                      rsync -az deploy/env/ "$USER@$HOST:${DEPLOY_DIR}/"
-
-                      # Build and run containers on EC2
-                      ssh -o StrictHostKeyChecking=no "$USER@$HOST" "
-                        cd ${DEPLOY_DIR}
-                        docker compose down || true
-                        docker compose build
-                        docker compose up -d
-                      "
-                    '''
-                }
+                sh '''
+                  docker compose -f ${COMPOSE_FILE} down
+                  docker compose -f ${COMPOSE_FILE} up -d
+                '''
             }
         }
     }
 
     post {
         success {
-            echo 'Deployment successful!'
+            echo 'Pipeline executed successfully'
         }
         failure {
-            echo 'Deployment failed.'
+            echo 'Pipeline execution failed'
         }
     }
 }
