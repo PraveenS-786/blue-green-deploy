@@ -1,6 +1,7 @@
 services:
   # API Gateway
   api-gateway:
+  image: ramyasree15/api-gateway:latest
     build:
       context: ./api-gateway
       dockerfile: Dockerfile
@@ -22,6 +23,7 @@ services:
 
   # Microservices
   user-service:
+  image: ramyasree15/user-service:latest
     build:
       context: ./user-service
       dockerfile: Dockerfile
@@ -34,6 +36,7 @@ services:
       - user-mongodb
 
   product-catalog-service:
+  image: ramyasree15/product-catalog-service:latest
     build:
       context: ./product-catalog-service
       dockerfile: Dockerfile
@@ -46,6 +49,7 @@ services:
       - product-catalog-mongodb
 
   shopping-cart-service:
+    image: ramyasree15/shopping-cart-service:latest
     build:
       context: ./shopping-cart-service
       dockerfile: Dockerfile
@@ -58,6 +62,7 @@ services:
       - shopping-cart-mongodb
 
   order-service:
+  image: ramyasree15/order-service:latest
     build:
       context: ./order-service
       dockerfile: Dockerfile
@@ -70,6 +75,7 @@ services:
       - order-mongodb
 
   notification-service:
+    image: ramyasree15/notification-service:latest
     build:
       context: ./notification-service
       dockerfile: Dockerfile
@@ -80,6 +86,7 @@ services:
       - ecommerce-network
 
   payment-service:
+    image: ramyasree15/payment-service:latest
     build:
       context: ./payment-service
       dockerfile: Dockerfile
