@@ -1,11 +1,15 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import morgan from 'morgan';
+
 import { envs } from './config/envs.adapter';
 import { RequestExt } from './interfaces/req.interfaces';
 import { checkJwt } from './middlewares/token.middleware';
 import { checkRole } from './middlewares/role.middleware';
 
+/* ======================================================
+   SERVICE URLS
+====================================================== */
 const services = {
   user: envs.USER_SERVICE_URL,
   productCatalog: envs.PRODUCT_CATALOG_SERVICE_URL,
@@ -17,33 +21,64 @@ const services = {
 const app = express();
 const port = envs.PORT;
 
+/* ======================================================
+   GLOBAL MIDDLEWARES
+====================================================== */
 app.use(morgan('dev'));
+app.use(express.json());
 
-// Helper function to create proxy middleware
-const createProxy = (target: string, router?: (req: RequestExt) => string) =>
+/* ======================================================
+   HELPERS
+====================================================== */
+
+// Generic proxy creator
+const createProxy = (
+  target: string,
+  router?: (req: RequestExt) => string,
+) =>
   createProxyMiddleware({
     target,
     changeOrigin: true,
     router,
   });
 
-// Helper function to add authentication and role checks
+// Auth + Role check
+// GET → public
+// Others → protected
 const addAuthAndRoleChecks =
   (role: 'admin' | 'user') =>
   (req: Request, res: Response, next: NextFunction) => {
-    if (req.method !== 'GET') {
-      return checkJwt(req, res, () =>
-        checkRole(role)(req as RequestExt, res, next),
-      );
-    }
-    next();
+    if (req.method === 'GET') return next();
+
+    checkJwt(req, res, () =>
+      checkRole(role)(req as RequestExt, res, next),
+    );
   };
 
-// Auth routes
-app.use('/auth/register', createProxy(`${services.user}/auth/register`));
-app.use('/auth/login', createProxy(`${services.user}/auth/login`));
+/* ======================================================
+   AUTH ROUTES
+====================================================== */
+app.use(
+  '/auth/login',
+  createProxyMiddleware({
+    target: services.user,
+    changeOrigin: true,
+    pathRewrite: () => '/login',
+  }),
+);
 
-// User routes
+app.use(
+  '/auth/register',
+  createProxyMiddleware({
+    target: services.user,
+    changeOrigin: true,
+    pathRewrite: () => '/register',
+  }),
+);
+
+/* ======================================================
+   USER ROUTES
+====================================================== */
 app.use(
   '/user',
   checkJwt,
@@ -53,71 +88,87 @@ app.use(
   ),
 );
 
-// Product Catalog routes
+/* ======================================================
+   PRODUCT CATALOG
+====================================================== */
 app.use(
   '/category',
   addAuthAndRoleChecks('admin'),
   createProxy(`${services.productCatalog}/category`),
 );
+
 app.use(
   '/product',
   addAuthAndRoleChecks('admin'),
   createProxy(`${services.productCatalog}/product`),
 );
 
-// Shopping Cart routes
+/* ======================================================
+   SHOPPING CART
+====================================================== */
 app.use(
   '/cart',
   checkJwt,
   createProxy(
     services.shoppingCart,
-    (req: RequestExt) => `${services.shoppingCart}/cart/${req.user?.id}`,
+    (req: RequestExt) =>
+      `${services.shoppingCart}/cart/${req.user?.id}`,
   ),
 );
 
-// Order routes
-app.use(
-  '/order/:orderId',
-  checkJwt,
-  createProxy(
-    services.order,
-    (req: RequestExt) =>
-      `${services.order}/order/${req.user?.id}/${req.params.orderId}`,
-  ),
-);
+/* ======================================================
+   ORDER
+====================================================== */
 app.use(
   '/order',
   checkJwt,
   createProxy(
     services.order,
-    (req: RequestExt) => `${services.order}/order/${req.user?.id}`,
+    (req: RequestExt) =>
+      `${services.order}/order/${req.user?.id}`,
   ),
 );
 
-// Payment routes
+/* ======================================================
+   PAYMENT
+====================================================== */
 app.use(
   '/payment',
   checkJwt,
-  createProxy(
-    services.payment,
-    (req: RequestExt) => `${services.payment}/payment/${req.user?.id}`,
-  ),
+  createProxy(`${services.payment}/payment`),
 );
-app.use('/webhook', createProxy(`${services.payment}/payment/webhook`));
 
-// Root route
-app.get('/', (req: Request, res: Response) => {
-  res.send('API Gateway is running');
+/* ======================================================
+   ROOT
+====================================================== */
+app.get('/', (_req: Request, res: Response) => {
+  res.send('API Gateway is running 🚀');
 });
 
-// Error handling middleware
-app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
-  console.log(err);
-  res.status(500).send('Something broke!');
-  next();
+/* ======================================================
+   HEALTH CHECK
+====================================================== */
+app.get('/health', (_req: Request, res: Response) => {
+  res.status(200).json({
+    status: 'ok',
+    service: 'api-gateway',
+    timestamp: new Date().toISOString(),
+  });
 });
 
-// Start the server
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+/* ======================================================
+   ERROR HANDLER
+====================================================== */
+app.use(
+  (err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('Gateway Error:', err);
+    res.status(500).json({ message: 'Gateway error' });
+  },
+);
+
+/* ======================================================
+   START SERVER
+====================================================== */
+app.listen(port, '0.0.0.0', () => {
+  console.log(`API Gateway running on http://0.0.0.0:${port}`);
 });
