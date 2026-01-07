@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   api-gateway:
-    image: ramyasree15/api-gateway:latest
+    image: ramyasree15/api-gateway:${TAG:-latest}
     build:
       context: ./api-gateway
       dockerfile: Dockerfile
@@ -35,7 +35,7 @@ services:
         condition: service_started
 
   user-service:
-    image: ramyasree15/user-service:latest
+    image: ramyasree15/user-service:${TAG:-latest}
     build:
       context: ./user-service
       dockerfile: Dockerfile
@@ -49,7 +49,7 @@ services:
         condition: service_started
 
   product-catalog-service:
-    image: ramyasree15/product-catalog-service:latest
+    image: ramyasree15/product-catalog-service:${TAG:-latest}
     build:
       context: ./product-catalog-service
       dockerfile: Dockerfile
@@ -63,7 +63,7 @@ services:
         condition: service_started
 
   shopping-cart-service:
-    image: ramyasree15/shopping-cart-service:latest
+    image: ramyasree15/shopping-cart-service:${TAG:-latest}
     build:
       context: ./shopping-cart-service
       dockerfile: Dockerfile
@@ -77,7 +77,7 @@ services:
         condition: service_started
 
   order-service:
-    image: ramyasree15/order-service:latest
+    image: ramyasree15/order-service:${TAG:-latest}
     build:
       context: ./order-service
       dockerfile: Dockerfile
@@ -91,7 +91,7 @@ services:
         condition: service_started
 
   notification-service:
-    image: ramyasree15/notification-service:latest
+    image: ramyasree15/notification-service:${TAG:-latest}
     build:
       context: ./notification-service
       dockerfile: Dockerfile
@@ -102,7 +102,7 @@ services:
       - ecommerce-network
 
   payment-service:
-    image: ramyasree15/payment-service:latest
+    image: ramyasree15/payment-service:${TAG:-latest}
     build:
       context: ./payment-service
       dockerfile: Dockerfile
