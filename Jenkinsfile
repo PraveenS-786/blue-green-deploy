@@ -1,11 +1,12 @@
 pipeline {
     agent any
 
-    environment {
-        DOCKERHUB_CREDENTIALS = 'dockerhub-creds'
-        DOCKERHUB_USERNAME = 'ramyasree15'
-        COMPOSE_FILE = 'docker-compose.yml'
-    }
+     environment {
+            DOCKERHUB_CREDENTIALS = 'dockerhub-creds'
+            DOCKERHUB_USERNAME = 'ramyasree15'
+            COMPOSE_FILE = 'docker-compose.yml'
+            ACTIVE_FILE = '.active_tag'
+}
 
     stages {
 
