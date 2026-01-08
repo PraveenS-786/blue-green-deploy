@@ -44,15 +44,60 @@ pipeline {
                 '''
             }
         }
+stage('Select Blue-Green Tag') {
+    steps {
+        sh '''
+          if [ -f ${ACTIVE_FILE} ]; then
+            CURRENT=$(cat ${ACTIVE_FILE})
+          else
+            CURRENT=green
+          fi
 
-        stage('Deploy Application') {
-            steps {
+          if [ "$CURRENT" = "green" ]; then
+            echo blue > .next_tag
+          else
+            echo green > .next_tag
+          fi
+        '''
+        script {
+            env.TAG = readFile('.next_tag').trim()
+            echo "Deploying ${env.TAG}"
+        }
+    }
+}
+
+       stage('Deploy Application (Blue-Green)') {
+    steps {
+        sh '''
+          echo "Starting new version..."
+          TAG=${TAG} docker compose -f ${COMPOSE_FILE} up -d
+        '''
+    }
+}
+stage('Verify & Switch') {
+    steps {
+        script {
+            try {
                 sh '''
-                  docker compose -f ${COMPOSE_FILE} down
-                  docker compose -f ${COMPOSE_FILE} up -d
+                  for i in $(seq 1 15); do
+                    curl -sf http://localhost:3000/health && exit 0
+                    sleep 2
+                  done
+                  exit 1
                 '''
+
+                writeFile file: "${ACTIVE_FILE}", text: "${env.TAG}"
+                echo "Switched traffic to ${env.TAG}"
+
+            } catch (e) {
+                echo "Health check failed, rolling back"
+                sh "TAG=${env.TAG} docker compose -f ${COMPOSE_FILE} down"
+                error "Deployment failed"
             }
         }
+    }
+}
+
     }
 
     post {
